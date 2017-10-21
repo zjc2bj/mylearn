@@ -1,6 +1,8 @@
-package cn.zjc.learn.concurrent;
+package cn.zjc.learn.concurrent.CuntDownLatch;
 
 import java.util.concurrent.TimeUnit;
+
+import cn.zjc.learn.concurrent.AbstractQueuedSynchronizer;
 
 public class CountDownLatch {
     private static final class Sync extends AbstractQueuedSynchronizer {
