@@ -1,8 +1,7 @@
-package cn.zjc.learn.concurrent;
+package cn.zjc.learn.concurrent.Semaphore;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
 
 public class SemaphoreTest {
 	public static void main(String[] args) {  
