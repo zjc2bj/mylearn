@@ -12,6 +12,15 @@ import java.util.concurrent.locks.LockSupport;
 
 import sun.misc.Unsafe;
 
+/**
+ * <pre>
+ * 	基于第一次状态判断失败 执行自旋 将waitStatus=SIGNAL(初始值为0) 
+ * 	下次执行则加锁，使用LockSupport.park(this);
+ *  -->等待release唤醒(LockSupport.unpark(s.thread);)
+ * </pre>
+ * 
+ * @author zjc <br>
+ */
 public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer implements java.io.Serializable {
 
 	private static final long serialVersionUID = 7373984972572414691L;
@@ -132,6 +141,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 
 	/**
 	 * Inserts node into queue, initializing if necessary. See picture above.
+	 * 
 	 * @return node's predecessor
 	 */
 	private Node enq(final Node node) {
@@ -237,7 +247,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 			Node h = head;
 			if (h != null && h != tail) {
 				int ws = h.waitStatus;
-				System.out.println("waitStatus = "+h.waitStatus);
+				System.out.println("waitStatus = " + h.waitStatus);
 				if (ws == Node.SIGNAL) {
 					if (!compareAndSetWaitStatus(h, Node.SIGNAL, 0))
 						continue; // loop to recheck cases
@@ -1728,8 +1738,8 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	 * intrinsics API. And while we are at it, we do the same for other CASable
 	 * fields (which could otherwise be done with atomic field updaters).
 	 */
-	//	private static final Unsafe unsafe = Unsafe.getUnsafe();
-	private static final Unsafe unsafe ;
+	// private static final Unsafe unsafe = Unsafe.getUnsafe();
+	private static final Unsafe unsafe;
 	private static final long stateOffset;
 	private static final long headOffset;
 	private static final long tailOffset;
@@ -1739,10 +1749,9 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	static {
 		try {
 			Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
-	        theUnsafe.setAccessible(true);
-	        unsafe = (Unsafe) theUnsafe.get(null);
+			theUnsafe.setAccessible(true);
+			unsafe = (Unsafe) theUnsafe.get(null);
 
-	        
 			stateOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("state"));
 			headOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("head"));
 			tailOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("tail"));

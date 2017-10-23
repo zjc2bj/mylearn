@@ -65,5 +65,6 @@ public class BufferFieldMethodDemo {
 		bf.clear();
 		// 此时：mark:-1,position:0,limit:10,capacity:10,remain:10
 		System.out.println("9.  "+BufferUtils.toString(bf));
+		//Buffer 被清空了。Buffer中的数据并未清除，只是这些标记告诉我们可以从哪里开始往Buffer里写数据。
 	}
 }
