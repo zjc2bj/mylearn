@@ -9,10 +9,12 @@ public class WeiYu {
 		System.out.println(1 << 2);
 		System.out.println(1 << 3);
 		System.out.println(1 << 4);
-		System.out.println(1 | 4 | 8 | 16);
-		
-		System.out.println(24 & 4);//不包含
-		System.out.println(24 & 8);//包含
-		System.out.println(24 & 16);//包含
+		System.out.println(1 << 5);
+		System.out.println("############");
+		System.out.println(1 | 4 | 8 | 16 |32);
+		System.out.println("############");
+		System.out.println(61 & 3);//不包含
+		System.out.println(61 & 7);//包含
+		System.out.println(61 & 16);//包含
 	}
 }

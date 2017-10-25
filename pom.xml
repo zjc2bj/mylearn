@@ -70,6 +70,38 @@
 			<version>1.5.5</version>
 		</dependency>
 		<!--end Commons Jar -->
+		
+		<!--redis -->
+		<dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-redis</artifactId>
+            <version>1.4.0.RELEASE</version>
+            <scope>compile</scope>
+        </dependency>
+        
+        <!-- zookeeper -->
+        <!-- <dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>curator-client</artifactId>
+            <version>2.6.0</version>
+        </dependency> 
+        <dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>apache-curator</artifactId>
+            <version>2.6.0</version>
+        </dependency> 
+        <dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>curator-framework</artifactId>
+            <version>2.6.0</version>
+        </dependency>  -->
+        
+        <dependency>
+            <groupId>com.daojia.dubbo-plus</groupId>
+            <artifactId>dubbo-plus-tracer</artifactId>
+            <version>1.0.1-SNAPSHOT</version>
+        </dependency>
+        
 	</dependencies>
 	<build>
 		<finalName>ROOT</finalName>
