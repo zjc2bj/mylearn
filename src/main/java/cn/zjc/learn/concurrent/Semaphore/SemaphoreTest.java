@@ -18,7 +18,7 @@ public class SemaphoreTest {
                         // 获取许可 
                         semp.acquire();  
                         System.out.println("Accessing: " + NO);  
-                        Thread.sleep((long) (Math.random() * 10000));  
+                        Thread.sleep((long) (4000));  
                         // 访问完后，释放 ，如果屏蔽下面的语句，则在控制台只能打印5条记录，之后线程一直阻塞
                         semp.release();  
                     } catch (InterruptedException e) {  
