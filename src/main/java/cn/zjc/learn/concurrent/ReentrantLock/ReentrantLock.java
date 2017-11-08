@@ -3,6 +3,7 @@ package cn.zjc.learn.concurrent.ReentrantLock;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.AbstractQueuedSynchronizer.ConditionObject;
 
 import cn.zjc.learn.concurrent.AbstractQueuedSynchronizer;
 
@@ -49,8 +50,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
 
 	@Override
 	public Condition newCondition() {
-		// TODO Auto-generated method stub
-		return null;
+		return sync.newCondition();
 	}
 
 	/**
@@ -138,6 +138,10 @@ public class ReentrantLock implements Lock, java.io.Serializable {
 			setState(c);
 			return free;
 		}
+		
+		final ConditionObject newCondition() {
+            return new ConditionObject();
+        }
 		
 		protected final boolean isHeldExclusively() {
             return getExclusiveOwnerThread() == Thread.currentThread();

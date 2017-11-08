@@ -38,6 +38,7 @@ import sun.misc.Unsafe;
  * 
  * @author zjc <br>
  */
+@SuppressWarnings("restriction")
 public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer implements java.io.Serializable {
 
 	private static final long serialVersionUID = 7373984972572414691L;
@@ -58,7 +59,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 
 		/** 表示当前的线程被取消 */
 		static final int CANCELLED = 1;
-		/** 表示当前节点的后继节点包含的线程需要运行，也就是unpark */
+		/** 表示当前节点的后继节点包含的线程需要运行，需要进行unpark操作 */
 		static final int SIGNAL = -1;
 		/** 表示当前节点在等待condition，也就是在condition队列中 */
 		static final int CONDITION = -2;
@@ -107,6 +108,66 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 
 	/** 锁监视器状态 */
 	private volatile int state;
+
+	/**
+	 * Setup to support compareAndSet. We need to natively implement this here:
+	 * For the sake of permitting future enhancements, we cannot explicitly
+	 * subclass AtomicInteger, which would be efficient and useful otherwise.
+	 * So, as the lesser of evils, we natively implement using hotspot
+	 * intrinsics API. And while we are at it, we do the same for other CASable
+	 * fields (which could otherwise be done with atomic field updaters).
+	 */
+	// private static final Unsafe unsafe = Unsafe.getUnsafe();
+	private static final Unsafe unsafe;
+	private static final long stateOffset;
+	private static final long headOffset;
+	private static final long tailOffset;
+	private static final long waitStatusOffset;
+	private static final long nextOffset;
+
+	static {
+		try {
+			Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
+			theUnsafe.setAccessible(true);
+			unsafe = (Unsafe) theUnsafe.get(null);
+
+			stateOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("state"));
+			headOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("head"));
+			tailOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("tail"));
+			waitStatusOffset = unsafe.objectFieldOffset(Node.class.getDeclaredField("waitStatus"));
+			nextOffset = unsafe.objectFieldOffset(Node.class.getDeclaredField("next"));
+		} catch (Exception ex) {
+			throw new Error(ex);
+		}
+	}
+
+	/**
+	 * CAS head field. Used only by enq.
+	 */
+	private final boolean compareAndSetHead(Node update) {
+		return unsafe.compareAndSwapObject(this, headOffset, null, update);
+	}
+
+	/**
+	 * CAS tail field. Used only by enq.
+	 */
+	private final boolean compareAndSetTail(Node expect, Node update) {
+		return unsafe.compareAndSwapObject(this, tailOffset, expect, update);
+	}
+
+	/**
+	 * CAS waitStatus field of a node.
+	 */
+	private static final boolean compareAndSetWaitStatus(Node node, int expect, int update) {
+		return unsafe.compareAndSwapInt(node, waitStatusOffset, expect, update);
+	}
+
+	/**
+	 * CAS next field of a node.
+	 */
+	private static final boolean compareAndSetNext(Node node, Node expect, Node update) {
+		return unsafe.compareAndSwapObject(node, nextOffset, expect, update);
+	}
 
 	protected final int getState() {
 		return state;
@@ -879,7 +940,9 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * 判断队列中是否有等待线程。该判断并非绝对公平 由于interrupts 或timeouts随时可能发生 当前线程返回false 下个调用可能返回true
+	 * 判断队列中是否有等待线程。该判断并非绝对公平 由于interrupts 或timeouts随时可能发生 当前线程返回false
+	 * 下个调用可能返回true
+	 * 
 	 * @since 1.7
 	 */
 	public final boolean hasQueuedPredecessors() {
@@ -1194,34 +1257,188 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * Condition implementation for a {@link AbstractQueuedSynchronizer} serving
-	 * as the basis of a {@link Lock} implementation.
-	 *
-	 * <p>
-	 * Method documentation for this class describes mechanics, not behavioral
-	 * specifications from the point of view of Lock and Condition users.
-	 * Exported versions of this class will in general need to be accompanied by
-	 * documentation describing condition semantics that rely on those of the
-	 * associated <tt>AbstractQueuedSynchronizer</tt>.
-	 *
-	 * <p>
-	 * This class is Serializable, but all fields are transient, so deserialized
-	 * conditions have no waiters.
+	 * http://www.cnblogs.com/leesf456/p/5350186.html
 	 */
 	public class ConditionObject implements Condition, java.io.Serializable {
 		private static final long serialVersionUID = 1173984872572414699L;
-		/** First node of condition queue. */
 		private transient Node firstWaiter;
-		/** Last node of condition queue. */
 		private transient Node lastWaiter;
 
-		/**
-		 * Creates a new <tt>ConditionObject</tt> instance.
-		 */
 		public ConditionObject() {
 		}
 
-		// Internal methods
+		/**
+		 * Implements interruptible condition wait.
+		 * <ol>
+		 * <li>If current thread is interrupted, throw InterruptedException.
+		 * <li>Save lock state returned by {@link #getState}.
+		 * <li>Invoke {@link #release} with saved state as argument, throwing
+		 * IllegalMonitorStateException if it fails.
+		 * <li>Block until signalled or interrupted.
+		 * <li>Reacquire by invoking specialized version of {@link #acquire}
+		 * with saved state as argument.
+		 * <li>If interrupted while blocked in step 4, throw
+		 * InterruptedException.
+		 * </ol>
+		 */
+		public final void await() throws InterruptedException {
+			if (Thread.interrupted())
+				throw new InterruptedException();
+			Node node = addConditionWaiter();
+			int savedState = fullyRelease(node);
+			int interruptMode = 0;
+			while (!isOnSyncQueue(node)) {
+				LockSupport.park(this);
+				if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
+					break;
+			}
+			if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
+				interruptMode = REINTERRUPT;
+			if (node.nextWaiter != null) // clean up if cancelled
+				unlinkCancelledWaiters();
+			if (interruptMode != 0)
+				reportInterruptAfterWait(interruptMode);
+		}
+
+		/**
+		 * Implements uninterruptible condition wait.
+		 * <ol>
+		 * <li>Save lock state returned by {@link #getState}.
+		 * <li>Invoke {@link #release} with saved state as argument, throwing
+		 * IllegalMonitorStateException if it fails.
+		 * <li>Block until signalled.
+		 * <li>Reacquire by invoking specialized version of {@link #acquire}
+		 * with saved state as argument.
+		 * </ol>
+		 */
+		public final void awaitUninterruptibly() {
+			Node node = addConditionWaiter();
+			int savedState = fullyRelease(node);
+			boolean interrupted = false;
+			while (!isOnSyncQueue(node)) {
+				LockSupport.park(this);
+				if (Thread.interrupted())
+					interrupted = true;
+			}
+			if (acquireQueued(node, savedState) || interrupted)
+				selfInterrupt();
+		}
+
+		/**
+		 * Implements timed condition wait.
+		 * <ol>
+		 * <li>If current thread is interrupted, throw InterruptedException.
+		 * <li>Save lock state returned by {@link #getState}.
+		 * <li>Invoke {@link #release} with saved state as argument, throwing
+		 * IllegalMonitorStateException if it fails.
+		 * <li>Block until signalled, interrupted, or timed out.
+		 * <li>Reacquire by invoking specialized version of {@link #acquire}
+		 * with saved state as argument.
+		 * <li>If interrupted while blocked in step 4, throw
+		 * InterruptedException.
+		 * </ol>
+		 */
+		public final long awaitNanos(long nanosTimeout) throws InterruptedException {
+			if (Thread.interrupted())
+				throw new InterruptedException();
+			Node node = addConditionWaiter();
+			int savedState = fullyRelease(node);
+			long lastTime = System.nanoTime();
+			int interruptMode = 0;
+			while (!isOnSyncQueue(node)) {
+				if (nanosTimeout <= 0L) {
+					transferAfterCancelledWait(node);
+					break;
+				}
+				LockSupport.parkNanos(this, nanosTimeout);
+				if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
+					break;
+
+				long now = System.nanoTime();
+				nanosTimeout -= now - lastTime;
+				lastTime = now;
+			}
+			if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
+				interruptMode = REINTERRUPT;
+			if (node.nextWaiter != null)
+				unlinkCancelledWaiters();
+			if (interruptMode != 0)
+				reportInterruptAfterWait(interruptMode);
+			return nanosTimeout - (System.nanoTime() - lastTime);
+		}
+
+		/**
+		 * Implements absolute timed condition wait.
+		 * <ol>
+		 * <li>If current thread is interrupted, throw InterruptedException.
+		 * <li>Save lock state returned by {@link #getState}.
+		 * <li>Invoke {@link #release} with saved state as argument, throwing
+		 * IllegalMonitorStateException if it fails.
+		 * <li>Block until signalled, interrupted, or timed out.
+		 * <li>Reacquire by invoking specialized version of {@link #acquire}
+		 * with saved state as argument.
+		 * <li>If interrupted while blocked in step 4, throw
+		 * InterruptedException.
+		 * <li>If timed out while blocked in step 4, return false, else true.
+		 * </ol>
+		 */
+		public final boolean awaitUntil(Date deadline) throws InterruptedException {
+			if (deadline == null)
+				throw new NullPointerException();
+			long abstime = deadline.getTime();
+			if (Thread.interrupted())
+				throw new InterruptedException();
+			Node node = addConditionWaiter();
+			int savedState = fullyRelease(node);
+			boolean timedout = false;
+			int interruptMode = 0;
+			while (!isOnSyncQueue(node)) {
+				if (System.currentTimeMillis() > abstime) {
+					timedout = transferAfterCancelledWait(node);
+					break;
+				}
+				LockSupport.parkUntil(this, abstime);
+				if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
+					break;
+			}
+			if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
+				interruptMode = REINTERRUPT;
+			if (node.nextWaiter != null)
+				unlinkCancelledWaiters();
+			if (interruptMode != 0)
+				reportInterruptAfterWait(interruptMode);
+			return !timedout;
+		}
+
+		/**
+		 * Moves the longest-waiting thread, if one exists, from the wait queue
+		 * for this condition to the wait queue for the owning lock.
+		 *
+		 * @throws IllegalMonitorStateException
+		 *             if {@link #isHeldExclusively} returns {@code false}
+		 */
+		public final void signal() {
+			if (!isHeldExclusively())
+				throw new IllegalMonitorStateException();
+			Node first = firstWaiter;
+			if (first != null)
+				doSignal(first);
+		}
+
+		/**
+		 * Moves all threads from the wait queue for this condition to the wait
+		 * queue for the owning lock.
+		 *
+		 * @throws IllegalMonitorStateException
+		 *             if {@link #isHeldExclusively} returns {@code false}
+		 */
+		public final void signalAll() {
+			if (!isHeldExclusively())
+				throw new IllegalMonitorStateException();
+			Node first = firstWaiter;
+			if (first != null)
+				doSignalAll(first);
+		}
 
 		/**
 		 * Adds a new waiter to wait queue.
@@ -1309,60 +1526,6 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 
 		// public methods
 
-		/**
-		 * Moves the longest-waiting thread, if one exists, from the wait queue
-		 * for this condition to the wait queue for the owning lock.
-		 *
-		 * @throws IllegalMonitorStateException
-		 *             if {@link #isHeldExclusively} returns {@code false}
-		 */
-		public final void signal() {
-			if (!isHeldExclusively())
-				throw new IllegalMonitorStateException();
-			Node first = firstWaiter;
-			if (first != null)
-				doSignal(first);
-		}
-
-		/**
-		 * Moves all threads from the wait queue for this condition to the wait
-		 * queue for the owning lock.
-		 *
-		 * @throws IllegalMonitorStateException
-		 *             if {@link #isHeldExclusively} returns {@code false}
-		 */
-		public final void signalAll() {
-			if (!isHeldExclusively())
-				throw new IllegalMonitorStateException();
-			Node first = firstWaiter;
-			if (first != null)
-				doSignalAll(first);
-		}
-
-		/**
-		 * Implements uninterruptible condition wait.
-		 * <ol>
-		 * <li>Save lock state returned by {@link #getState}.
-		 * <li>Invoke {@link #release} with saved state as argument, throwing
-		 * IllegalMonitorStateException if it fails.
-		 * <li>Block until signalled.
-		 * <li>Reacquire by invoking specialized version of {@link #acquire}
-		 * with saved state as argument.
-		 * </ol>
-		 */
-		public final void awaitUninterruptibly() {
-			Node node = addConditionWaiter();
-			int savedState = fullyRelease(node);
-			boolean interrupted = false;
-			while (!isOnSyncQueue(node)) {
-				LockSupport.park(this);
-				if (Thread.interrupted())
-					interrupted = true;
-			}
-			if (acquireQueued(node, savedState) || interrupted)
-				selfInterrupt();
-		}
-
 		/*
 		 * For interruptible waits, we need to track whether to throw
 		 * InterruptedException, if interrupted while blocked on condition,
@@ -1392,125 +1555,6 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 				throw new InterruptedException();
 			else if (interruptMode == REINTERRUPT)
 				selfInterrupt();
-		}
-
-		/**
-		 * Implements interruptible condition wait.
-		 * <ol>
-		 * <li>If current thread is interrupted, throw InterruptedException.
-		 * <li>Save lock state returned by {@link #getState}.
-		 * <li>Invoke {@link #release} with saved state as argument, throwing
-		 * IllegalMonitorStateException if it fails.
-		 * <li>Block until signalled or interrupted.
-		 * <li>Reacquire by invoking specialized version of {@link #acquire}
-		 * with saved state as argument.
-		 * <li>If interrupted while blocked in step 4, throw
-		 * InterruptedException.
-		 * </ol>
-		 */
-		public final void await() throws InterruptedException {
-			if (Thread.interrupted())
-				throw new InterruptedException();
-			Node node = addConditionWaiter();
-			int savedState = fullyRelease(node);
-			int interruptMode = 0;
-			while (!isOnSyncQueue(node)) {
-				LockSupport.park(this);
-				if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
-					break;
-			}
-			if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
-				interruptMode = REINTERRUPT;
-			if (node.nextWaiter != null) // clean up if cancelled
-				unlinkCancelledWaiters();
-			if (interruptMode != 0)
-				reportInterruptAfterWait(interruptMode);
-		}
-
-		/**
-		 * Implements timed condition wait.
-		 * <ol>
-		 * <li>If current thread is interrupted, throw InterruptedException.
-		 * <li>Save lock state returned by {@link #getState}.
-		 * <li>Invoke {@link #release} with saved state as argument, throwing
-		 * IllegalMonitorStateException if it fails.
-		 * <li>Block until signalled, interrupted, or timed out.
-		 * <li>Reacquire by invoking specialized version of {@link #acquire}
-		 * with saved state as argument.
-		 * <li>If interrupted while blocked in step 4, throw
-		 * InterruptedException.
-		 * </ol>
-		 */
-		public final long awaitNanos(long nanosTimeout) throws InterruptedException {
-			if (Thread.interrupted())
-				throw new InterruptedException();
-			Node node = addConditionWaiter();
-			int savedState = fullyRelease(node);
-			long lastTime = System.nanoTime();
-			int interruptMode = 0;
-			while (!isOnSyncQueue(node)) {
-				if (nanosTimeout <= 0L) {
-					transferAfterCancelledWait(node);
-					break;
-				}
-				LockSupport.parkNanos(this, nanosTimeout);
-				if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
-					break;
-
-				long now = System.nanoTime();
-				nanosTimeout -= now - lastTime;
-				lastTime = now;
-			}
-			if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
-				interruptMode = REINTERRUPT;
-			if (node.nextWaiter != null)
-				unlinkCancelledWaiters();
-			if (interruptMode != 0)
-				reportInterruptAfterWait(interruptMode);
-			return nanosTimeout - (System.nanoTime() - lastTime);
-		}
-
-		/**
-		 * Implements absolute timed condition wait.
-		 * <ol>
-		 * <li>If current thread is interrupted, throw InterruptedException.
-		 * <li>Save lock state returned by {@link #getState}.
-		 * <li>Invoke {@link #release} with saved state as argument, throwing
-		 * IllegalMonitorStateException if it fails.
-		 * <li>Block until signalled, interrupted, or timed out.
-		 * <li>Reacquire by invoking specialized version of {@link #acquire}
-		 * with saved state as argument.
-		 * <li>If interrupted while blocked in step 4, throw
-		 * InterruptedException.
-		 * <li>If timed out while blocked in step 4, return false, else true.
-		 * </ol>
-		 */
-		public final boolean awaitUntil(Date deadline) throws InterruptedException {
-			if (deadline == null)
-				throw new NullPointerException();
-			long abstime = deadline.getTime();
-			if (Thread.interrupted())
-				throw new InterruptedException();
-			Node node = addConditionWaiter();
-			int savedState = fullyRelease(node);
-			boolean timedout = false;
-			int interruptMode = 0;
-			while (!isOnSyncQueue(node)) {
-				if (System.currentTimeMillis() > abstime) {
-					timedout = transferAfterCancelledWait(node);
-					break;
-				}
-				LockSupport.parkUntil(this, abstime);
-				if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
-					break;
-			}
-			if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
-				interruptMode = REINTERRUPT;
-			if (node.nextWaiter != null)
-				unlinkCancelledWaiters();
-			if (interruptMode != 0)
-				reportInterruptAfterWait(interruptMode);
-			return !timedout;
 		}
 
 		/**
@@ -1633,66 +1677,5 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 			}
 			return list;
 		}
-	}
-
-	/**
-	 * Setup to support compareAndSet. We need to natively implement this here:
-	 * For the sake of permitting future enhancements, we cannot explicitly
-	 * subclass AtomicInteger, which would be efficient and useful otherwise.
-	 * So, as the lesser of evils, we natively implement using hotspot
-	 * intrinsics API. And while we are at it, we do the same for other CASable
-	 * fields (which could otherwise be done with atomic field updaters).
-	 */
-	// private static final Unsafe unsafe = Unsafe.getUnsafe();
-	private static final Unsafe unsafe;
-	private static final long stateOffset;
-	private static final long headOffset;
-	private static final long tailOffset;
-	private static final long waitStatusOffset;
-	private static final long nextOffset;
-
-	static {
-		try {
-			Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
-			theUnsafe.setAccessible(true);
-			unsafe = (Unsafe) theUnsafe.get(null);
-
-			stateOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("state"));
-			headOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("head"));
-			tailOffset = unsafe.objectFieldOffset(AbstractQueuedSynchronizer.class.getDeclaredField("tail"));
-			waitStatusOffset = unsafe.objectFieldOffset(Node.class.getDeclaredField("waitStatus"));
-			nextOffset = unsafe.objectFieldOffset(Node.class.getDeclaredField("next"));
-
-		} catch (Exception ex) {
-			throw new Error(ex);
-		}
-	}
-
-	/**
-	 * CAS head field. Used only by enq.
-	 */
-	private final boolean compareAndSetHead(Node update) {
-		return unsafe.compareAndSwapObject(this, headOffset, null, update);
-	}
-
-	/**
-	 * CAS tail field. Used only by enq.
-	 */
-	private final boolean compareAndSetTail(Node expect, Node update) {
-		return unsafe.compareAndSwapObject(this, tailOffset, expect, update);
-	}
-
-	/**
-	 * CAS waitStatus field of a node.
-	 */
-	private static final boolean compareAndSetWaitStatus(Node node, int expect, int update) {
-		return unsafe.compareAndSwapInt(node, waitStatusOffset, expect, update);
-	}
-
-	/**
-	 * CAS next field of a node.
-	 */
-	private static final boolean compareAndSetNext(Node node, Node expect, Node update) {
-		return unsafe.compareAndSwapObject(node, nextOffset, expect, update);
 	}
 }
