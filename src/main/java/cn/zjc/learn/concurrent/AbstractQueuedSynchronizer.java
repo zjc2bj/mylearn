@@ -1143,12 +1143,11 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * Invokes release with current state value; returns saved state. Cancels
-	 * node and throws exception on failure.
+	 * 根据当前state状态 执行release();出现异常 则取消当前节点的阻塞状态
 	 * 
 	 * @param node
 	 *            the condition node for this wait
-	 * @return previous sync state
+	 * @return 返回原state
 	 */
 	final int fullyRelease(Node node) {
 		boolean failed = true;
@@ -1284,7 +1283,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 		public final void await() throws InterruptedException {
 			if (Thread.interrupted())
 				throw new InterruptedException();
-			Node node = addConditionWaiter();
+			Node node = addConditionWaiter();// 添加到对尾
 			int savedState = fullyRelease(node);
 			int interruptMode = 0;
 			while (!isOnSyncQueue(node)) {
@@ -1441,9 +1440,9 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 		}
 
 		/**
-		 * Adds a new waiter to wait queue.
+		 * 为当前现成创建node 并添加到队尾
 		 * 
-		 * @return its new wait node
+		 * @return 返回当前线程对应的新节点
 		 */
 		private Node addConditionWaiter() {
 			Node t = lastWaiter;
