@@ -1,4 +1,4 @@
-package cn.zjc.learn.collection;
+package cn.zjc.learn.collection.map;
 
 /**
  * 
