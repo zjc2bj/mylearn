@@ -1,0 +1,25 @@
+int listenfd = create_cocket();...
+
+int epollfd = epoll_create() //API1:创建句柄
+
+epoll_ctl(epollfd, (listenfd, 可读)) //API2：注册事件
+
+while(epoll_wait(epollfd, read_events)) //API3:获取就绪事件
+	for(event in ready_events){
+		if(event.fd == listenfd){
+			int connfd = accept(listenfd); //第一件事：accept
+			epoll_ctl(epollfd, (listenfd, 可读));  //API2：注册事件
+		}else if(event.fd == connfd){
+			if(event.ev == 可读)
+				recv(connfd, readbuf); ////第2件事：读数据
+				String result = handle(dreadbuf); //第3件事：处理数据
+				write(dwritebuf, result);
+				epoll_ctl(epollfd, (listenfd, 可写))
+			else if events.ev == 可写
+				send(connfd, writebuf); //第2件事：写数据
+				epoll_ctl(epollfd, (listenfd, 可读));  //API2：注册事件
+		} 
+	}
+	
+	
+该伪代码可参考nio代码 重新梳理

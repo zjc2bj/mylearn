@@ -21,7 +21,7 @@ public class ClientDemo {
 
 		OutputStream os = socket.getOutputStream();
 		InputStream is = socket.getInputStream();
-		Thread.sleep(5000);
+		Thread.sleep(20000);
 
 		// 读。。。
 		new Thread(new Runnable() {

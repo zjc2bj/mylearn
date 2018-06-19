@@ -243,7 +243,8 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
 	 * A randomizing value associated with this instance that is applied to hash
 	 * code of keys to make hash collisions harder to find.
 	 */
-	transient final int hashSeed = sun.misc.Hashing.randomHashSeed(this);
+//	transient final int hashSeed = sun.misc.Hashing.randomHashSeed(this);
+	transient final int hashSeed = 0;//TODO
 
 	/**
 	 * Constructs an empty <tt>HashMap</tt> with the specified initial capacity
@@ -337,7 +338,8 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
 		int h = 0;
 		if (useAltHashing) {
 			if (k instanceof String) {
-				return sun.misc.Hashing.stringHash32((String) k);
+				//return sun.misc.Hashing.stringHash32((String) k);
+				return 0;//TODO
 			}
 			h = hashSeed;
 		}
@@ -953,8 +955,9 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
 	 * the <tt>add</tt> or <tt>addAll</tt> operations.
 	 */
 	public Set<K> keySet() {
-		Set<K> ks = keySet;
-		return (ks != null ? ks : (keySet = new KeySet()));
+//		Set<K> ks = keySet;
+//		return (ks != null ? ks : (keySet = new KeySet()));
+		return null;//TODO
 	}
 
 	private final class KeySet extends AbstractSet<K> {
@@ -992,8 +995,9 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
 	 * <tt>addAll</tt> operations.
 	 */
 	public Collection<V> values() {
-		Collection<V> vs = values;
-		return (vs != null ? vs : (values = new Values()));
+//		Collection<V> vs = values;
+//		return (vs != null ? vs : (values = new Values()));
+		return null; //TODO
 	}
 
 	private final class Values extends AbstractCollection<V> {
@@ -1107,7 +1111,8 @@ public class HashMap<K, V> extends AbstractMap<K, V> implements Map<K, V>, Clone
 			throw new InvalidObjectException("Illegal load factor: " + loadFactor);
 
 		// set hashSeed (can only happen after VM boot)
-		Holder.UNSAFE.putIntVolatile(this, Holder.HASHSEED_OFFSET, sun.misc.Hashing.randomHashSeed(this));
+//		Holder.UNSAFE.putIntVolatile(this, Holder.HASHSEED_OFFSET, sun.misc.Hashing.randomHashSeed(this));
+		//TODO
 
 		// Read in number of buckets and allocate the bucket array;
 		s.readInt(); // ignored
