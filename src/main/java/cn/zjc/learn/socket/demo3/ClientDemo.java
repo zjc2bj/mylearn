@@ -19,8 +19,8 @@ public class ClientDemo {
 		Socket socket = new Socket("127.0.0.1", 8080);
 		println("client connect!!!");
 
-		OutputStream os = socket.getOutputStream();
-		InputStream is = socket.getInputStream();
+		final OutputStream os = socket.getOutputStream();
+		final InputStream is = socket.getInputStream();
 		Thread.sleep(20000);
 
 		// 读。。。

@@ -114,6 +114,13 @@
 			<version>5.0.0.Alpha1</version>
 		</dependency>
 		
+		<!-- lombok -->
+		<dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.16.20</version>
+            <scope>provided</scope>
+        </dependency>
 		
 		<!-- log -->
 		<dependency>
@@ -140,7 +147,11 @@
 		    <version>3.0.0-alpha-1</version>
 		</dependency>
 		
-		        
+		<dependency>
+	        <groupId>org.apache.rocketmq</groupId>
+	        <artifactId>rocketmq-client</artifactId>
+	        <version>4.3.0</version>
+	    </dependency>        
 	</dependencies>
 	<build>
 		<finalName>ROOT</finalName>
