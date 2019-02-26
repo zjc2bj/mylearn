@@ -57,9 +57,11 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 		static final Node SHARED = new Node();// 共享模式
 		static final Node EXCLUSIVE = null;// 独占模式
 
-		/** 表示当前的线程被取消 */
+		/** 表示当前节点的线程被取消 */
 		static final int CANCELLED = 1;
-		/** 表示当前节点的后继节点包含的线程需要运行，需要进行unpark操作 */
+		/**-1表示当前节点的后继节点包含的线程需要运行，则需要进行unpark操作 TODO
+		 * -2表示当前节点的的后继节点将要或者已经被阻塞，在当前节点释放的时候需要unpark后继节点
+		 */
 		static final int SIGNAL = -1;
 		/** 表示当前节点在等待condition，也就是在condition队列中 */
 		static final int CONDITION = -2;
@@ -191,18 +193,23 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	static final long spinForTimeoutThreshold = 1000L;
 
 	/**
-	 * 自旋-->将node入队-->放到双向链表末尾 <B>head为new Node()</B>，并返回原始的tail节点。 <br>
+	 * 自旋-->将node入队-->放到双向链表末尾，并返回原始的tail节点。 <br>
 	 * 如果第一次调用 即返回head
+	 * 
+	 * <pre>
+	 * 1.在当前线程是第一个加入同步队列时，调用compareAndSetHead(new Node())方法，完成链式队列的头结点的初始化；
+	 * 2.自旋不断尝试CAS尾插入节点直至成功为止。
+	 * </pre>
 	 * 
 	 * <pre>
 	 * 如果tail(head为null)则初始化一个new Node(). 即  
 	 * +------+   +------+ 
-	 * | head | = | tail |  head = tail = new Node(); head = tail = new Node();
+	 * | head | = | tail |  head = tail = new Node();
 	 * +------+   +------+ 
 	 * enq之后
-	 * +------+  prev +-------+       +-----+
-	 * | head | <---- |node...| <---- |tail | 
-	 * +------+       +-------+       +-----+
+	 * +------+  prev +-------------+
+	 * | head | <---- |node(tail)...|
+	 * +------+       +-------------+
 	 *   head = new Node();
 	 *   tail = node;(入参)
 	 * </pre>
@@ -214,6 +221,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 				if (compareAndSetHead(new Node()))
 					tail = head;
 			} else {
+				// 尾插入，CAS操作失败自旋尝试
 				node.prev = t;
 				if (compareAndSetTail(t, node)) {
 					t.next = node;
@@ -230,15 +238,21 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	 */
 	private Node addWaiter(Node mode) {
 		Node node = new Node(Thread.currentThread(), mode);
+		
+		// ==============该段代码可删除-start=============
 		// 先尝试入队 失败则执行 enq流程
 		Node t = tail;
-		if (t != null) {
+		if (t != null) { // 当前尾节点是否为nul
+			// 将当前节点 尾插入的方式插入同步队列中
 			node.prev = t;
 			if (compareAndSetTail(t, node)) {
 				t.next = node;
 				return node;
 			}
 		}
+		// ==============该段代码可删除-end=============
+		
+		// 当前同步队列尾节点为null，说明当前线程是第一个加入同步队列进行等待的线程
 		enq(node);// 初始化head tail 并放入对了末尾
 		return node;
 	}
@@ -268,8 +282,17 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 			compareAndSetWaitStatus(node, ws, 0);
 
 		// 循环取下个等待的节点
+		/*Thread to unpark is held in successor, which is normally
+         * just the next node.  But if cancelled or apparently null,
+         * traverse backwards from tail to find the actual
+         * non-cancelled successor.
+         * 
+		 * 判断后继节点是否为空或者是否是取消状态，然后从队列尾部向前遍历找到最前面的一个waitStatus小于0的节点，至于为什么从尾部开始向前遍历，
+		 * 回想一下cancelAcquire方法的处理过程，cancelAcquire只是设置了next的变化，没有设置prev的变化，在最后有这样一行代码：
+		 * node.next = node，如果这时执行了unparkSuccessor方法，并且向后遍历的话，就成了死循环了，所以这时只有prev是稳定的。
+		 */
 		Node s = node.next;
-		if (s == null || s.waitStatus > 0) {
+		if (s == null || s.waitStatus > 0) { // 如果为null 或取消
 			s = null;
 			for (Node t = tail; t != null && t != node; t = t.prev)
 				if (t.waitStatus <= 0)
@@ -421,7 +444,19 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 		Thread.currentThread().interrupt();
 	}
 
-	/** 阻塞当前线程 解除阻塞后 返回当前线程的阻塞状态 */
+	/**
+	 * 阻塞当前线程 解除阻塞后 返回当前线程的阻塞状态
+	 * 
+	 * <pre>
+	 * Thread.interrupted()方法的作用，该方法是获取线程的中断状态，并复位
+	 * park与wait的作用类似，但是对中断状态的处理并不相同。如果当前线程不是中断的状态，park与wait的效果是一样的；如果一个线程是中断的状态，这时执行wait方法会报java.lang.IllegalMonitorStateException，而执行park时并不会报异常，而是直接返回。
+	 * 所以，知道了这一点，就可以知道为什么要进行中断状态的复位了：
+	 * 如果当前线程是非中断状态，则在执行park时被阻塞，这是返回中断状态是false；
+	 * 如果当前线程是中断状态，则park方法不起作用，会立即返回，然后parkAndCheckInterrupt方法会获取中断的状态，也就是true，并复位；
+	 * 再次执行循环的时候，由于在前一步已经把该线程的中断状态进行了复位，则再次调用park方法时会阻塞。
+	 * 所以，这里判断线程中断的状态实际上是为了不让循环一直执行，要让当前线程进入阻塞的状态。想象一下，如果不这样判断，前一个线程在获取锁之后执行了很耗时的操作，那么岂不是要一直执行该死循环？这样就造成了CPU使用率飙升，这是很严重的后果。
+	 * </pre>
+	 */
 	private final boolean parkAndCheckInterrupt() {
 		LockSupport.park(this);
 		return Thread.interrupted();
