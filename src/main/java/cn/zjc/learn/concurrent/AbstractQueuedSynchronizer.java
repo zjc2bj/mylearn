@@ -186,9 +186,8 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	// Queuing utilities
 
 	/**
-	 * The number of nanoseconds for which it is faster to spin rather than to
-	 * use timed park. A rough estimate suffices to improve responsiveness with
-	 * very short timeouts.
+	 * 时间阈值(纳秒，小于这个值可以认为自旋比加锁更快、更能提高响应能力)<br>
+	 * 小于1000纳秒的采用自旋锁，大于1000纳秒，使用LockSupport.park方法，将线程挂起
 	 */
 	static final long spinForTimeoutThreshold = 1000L;
 
@@ -258,7 +257,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * 原head出对，当前node设置为head
+	 * 原head出对列，当前node设置为head
 	 */
 	private void setHead(Node node) {
 		head = node;
@@ -553,8 +552,10 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 				}
 				if (nanosTimeout <= 0)
 					return false;
-				if (shouldParkAfterFailedAcquire(p, node) && nanosTimeout > spinForTimeoutThreshold)
+				if (shouldParkAfterFailedAcquire(p, node) && nanosTimeout > spinForTimeoutThreshold) {
+					// nanosTimeout 大于spinForTimeoutThreshold执行park 否则执行自旋
 					LockSupport.parkNanos(this, nanosTimeout);
+				}
 				long now = System.nanoTime();
 				nanosTimeout -= now - lastTime;
 				lastTime = now;
@@ -568,7 +569,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * Acquires in shared uninterruptible mode.
+	 * 共享模式-无中断.
 	 * 
 	 * @param arg
 	 *            the acquire argument
@@ -582,7 +583,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 				final Node p = node.predecessor();
 				if (p == head) {
 					int r = tryAcquireShared(arg);
-					if (r >= 0) {
+					if (r >= 0) { // 返回值>0 则退出
 						setHeadAndPropagate(node, r);
 						p.next = null; // help GC
 						if (interrupted)
@@ -728,12 +729,11 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * Acquires in exclusive mode, aborting if interrupted. Implemented by first
-	 * checking interrupt status, then invoking at least once
-	 * {@link #tryAcquire}, returning on success. Otherwise the thread is
-	 * queued, possibly repeatedly blocking and unblocking, invoking
-	 * {@link #tryAcquire} until success or the thread is interrupted. This
-	 * method can be used to implement method {@link Lock#lockInterruptibly}.
+	 * 独占模式, 遇到interrupt终止. Implemented by first
+	 * 至少执行一次 {@link #tryAcquire},成功则返回
+	 * 否则.现成进入队列, possibly repeatedly blocking and unblocking, invoking
+	 * {@link #tryAcquire} until success or the thread is interrupted. 
+	 * 该方法可以用来实现  {@link Lock#lockInterruptibly}.
 	 *
 	 * @param arg
 	 *            the acquire argument. This value is conveyed to
@@ -750,7 +750,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * 独占模式下 在指定时间内 尝试获取锁 如果为达到指定时间 并且为获取失败 则执行自旋<br>
+	 * 独占模式下 在指定时间内 尝试获取锁 如果未达到指定时间 并且获取失败 则执行自旋<br>
 	 * --（连续2次失败 会调用LockSupport.parkNanos(this, nanosTimeout)阻塞）<br>
 	 * 该方法可以用来实现{@link Lock#tryLock(long, TimeUnit)}.
 	 * 
@@ -779,10 +779,9 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	}
 
 	/**
-	 * Acquires in shared mode, ignoring interrupts. Implemented by first
-	 * invoking at least once {@link #tryAcquireShared}, returning on success.
-	 * Otherwise the thread is queued, possibly repeatedly blocking and
-	 * unblocking, invoking {@link #tryAcquireShared} until success.
+	 * 共享模式, 忽略中断. 至少执行一次  {@link #tryAcquireShared}, 成功则返回.
+	 * 否则线程如队列, 可能会反复执行 blocking and
+	 * unblocking, 执行 {@link #tryAcquireShared} 直到执行成功.
 	 *
 	 * @param arg
 	 *            the acquire argument. This value is conveyed to
