@@ -10,7 +10,7 @@ import java.util.concurrent.locks.Condition;
 import cn.zjc.learn.concurrent.ReentrantLock.ReentrantLock;
 
 /**
- * 单向链表 -- next
+ * 单向链表??? -- next
  * TODO 因为take 和put 用的不同的锁 为何入队出队不加锁呢？？？对同一个链表同时读取 没有问题？
  * @author zhujunchao
  */

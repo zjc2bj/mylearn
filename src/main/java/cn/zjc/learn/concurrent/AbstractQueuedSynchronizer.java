@@ -967,8 +967,8 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
 	 * method is invoked from {@link #tryAcquireShared}) then it is guaranteed
 	 * that the current thread is not the first queued thread. Used only as a
 	 * heuristic in ReentrantReadWriteLock.
-	 */
-	final boolean apparentlyFirstQueuedIsExclusive() {
+	 */ 
+	protected final boolean apparentlyFirstQueuedIsExclusive() {
 		Node h, s;
 		return (h = head) != null && (s = h.next) != null && !s.isShared() && s.thread != null;
 	}

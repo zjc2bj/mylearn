@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.zjc.learn</groupId>
@@ -6,11 +7,11 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 	<name>zjc</name>
-	
+
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
-	
+
 	<dependencies>
 
 		<!--start Commons Jar -->
@@ -70,40 +71,37 @@
 			<version>1.5.5</version>
 		</dependency>
 		<!--end Commons Jar -->
-		
+
 		<!--redis -->
 		<dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-redis</artifactId>
-            <version>1.4.0.RELEASE</version>
-            <scope>compile</scope>
-        </dependency>
-        
-        <!-- zookeeper -->
-        <dependency>
-            <groupId>org.apache.curator</groupId>
-            <artifactId>curator-client</artifactId>
-            <version>2.6.0</version>
-        </dependency> 
-        <dependency>
-            <groupId>org.apache.curator</groupId>
-            <artifactId>curator-recipes</artifactId>
-            <version>2.6.0</version>
-        </dependency> 
-        <dependency>
-            <groupId>org.apache.curator</groupId>
-            <artifactId>curator-framework</artifactId>
-            <version>2.6.0</version>
-        </dependency> 
-        
-        <!-- <dependency>
-            <groupId>com.daojia.dubbo-plus</groupId>
-            <artifactId>dubbo-plus-tracer</artifactId>
-            <version>1.0.1-SNAPSHOT</version>
-        </dependency> -->
-        
-        <!-- netty -->
-        <dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-redis</artifactId>
+			<version>1.4.0.RELEASE</version>
+			<scope>compile</scope>
+		</dependency>
+
+		<!-- zookeeper -->
+		<dependency>
+			<groupId>org.apache.curator</groupId>
+			<artifactId>curator-client</artifactId>
+			<version>2.6.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.curator</groupId>
+			<artifactId>curator-recipes</artifactId>
+			<version>2.6.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.curator</groupId>
+			<artifactId>curator-framework</artifactId>
+			<version>2.6.0</version>
+		</dependency>
+
+		<!-- <dependency> <groupId>com.daojia.dubbo-plus</groupId> <artifactId>dubbo-plus-tracer</artifactId> 
+			<version>1.0.1-SNAPSHOT</version> </dependency> -->
+
+		<!-- netty -->
+		<dependency>
 			<groupId>io.netty</groupId>
 			<artifactId>netty-all</artifactId>
 			<version>5.0.0.Alpha1</version>
@@ -113,15 +111,15 @@
 			<artifactId>netty-example</artifactId>
 			<version>5.0.0.Alpha1</version>
 		</dependency>
-		
+
 		<!-- lombok -->
 		<dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.16.20</version>
-            <scope>provided</scope>
-        </dependency>
-		
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>1.16.20</version>
+			<scope>provided</scope>
+		</dependency>
+
 		<!-- log -->
 		<dependency>
 			<groupId>commons-logging</groupId>
@@ -133,25 +131,59 @@
 			<artifactId>log4j</artifactId>
 			<version>1.2.17</version>
 		</dependency>
-		
+
 		<dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
-            <version>1.2.29</version>
-        </dependency>
-        
-        <!-- https://mvnrepository.com/artifact/org.codehaus.groovy/groovy-all -->
-		<dependency>
-		    <groupId>org.codehaus.groovy</groupId>
-		    <artifactId>groovy-all</artifactId>
-		    <version>3.0.0-alpha-1</version>
+			<groupId>com.alibaba</groupId>
+			<artifactId>fastjson</artifactId>
+			<version>1.2.29</version>
 		</dependency>
-		
+
+		<!-- https://mvnrepository.com/artifact/org.codehaus.groovy/groovy-all -->
 		<dependency>
-	        <groupId>org.apache.rocketmq</groupId>
-	        <artifactId>rocketmq-client</artifactId>
-	        <version>4.3.0</version>
-	    </dependency>        
+			<groupId>org.codehaus.groovy</groupId>
+			<artifactId>groovy-all</artifactId>
+			<version>3.0.0-alpha-1</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.rocketmq</groupId>
+			<artifactId>rocketmq-client</artifactId>
+			<version>4.3.0</version>
+		</dependency>
+
+		<!-- spark -->
+		<dependency>
+			<groupId>org.apache.spark</groupId>
+			<artifactId>spark-core_2.11</artifactId>
+			<version>2.4.3</version>
+		</dependency>
+		<dependency> <!-- Spark dependency -->
+			<groupId>org.apache.spark</groupId>
+			<artifactId>spark-sql_2.11</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.spark</groupId>
+			<artifactId>spark-streaming_2.11</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+
+		<!-- <dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-dependencies</artifactId>
+			<version>2.0.8.RELEASE</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-dependencies</artifactId>
+			<version>Finchley.SR2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-configuration-processor</artifactId>
+			<optional>true</optional>
+		</dependency> -->
+
 	</dependencies>
 	<build>
 		<finalName>ROOT</finalName>
@@ -160,10 +192,8 @@
 			<resource>
 				<directory>src/main/resources</directory>
 			</resource>
-			<!-- <resource>
-				<directory>src/main/java</directory>
-				<includes> <include>**/*.xml</include> </includes>
-			</resource> -->
+			<!-- <resource> <directory>src/main/java</directory> <includes> <include>**/*.xml</include> 
+				</includes> </resource> -->
 		</resources>
 		<testSourceDirectory>src/test/java</testSourceDirectory>
 		<outputDirectory>src/main/webapp/WEB-INF/classes</outputDirectory>
